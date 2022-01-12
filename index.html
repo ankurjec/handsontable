@@ -1,0 +1,210 @@
+<!DOCTYPE html>
+<html>
+	<head>
+		<title>Ankur</title>
+		<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/handsontable/dist/handsontable.full.min.css">
+		<script src="https://cdn.jsdelivr.net/npm/handsontable/dist/handsontable.full.min.js"></script>
+		<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/pikaday@1.8.2/css/pikaday.css">
+
+		<style>
+			body {
+				background-color: rgb(131, 127, 127);
+				margin: 0;
+				padding: 0;
+			  }
+			  
+			  #example1 {
+				width: 2700px;
+				height: 300px;
+				overflow: hidden;
+			  }
+		  </style>
+	</head>
+	<body>
+<div id='example1'></div>
+<div class="controls">
+	<button id="load" class="button button--primary button--blue">Load data</button>&nbsp;
+	<button id="save" class="button button--primary button--blue">Save data</button>
+	<button id="export-file">Download CSV</button>
+
+	<label>
+	  <input type="checkbox" name="autosave" id="autosave"/>
+	  Autosave
+	</label>
+  </div>
+  
+  <pre id="example1console" class="console">Click "Load" to load data from server</pre>
+
+	</body>
+	<script>
+		const container = document.querySelector('#example1');
+		const button = document.querySelector('#export-file');
+
+const exampleConsole = document.querySelector('#example1console');
+const autosave = document.querySelector('#autosave');
+const load = document.querySelector('#load');
+const save = document.querySelector('#save');
+
+let autosaveNotification;
+
+const hot = new Handsontable(container, {
+  startRows: 28,
+  startCols: 12,
+  rowHeaders: true,
+  colHeaders:  ['Name', 'Address', 'Date', 'Phone','Surname','Relation Status','Parent Name','Identification Mark','Pin','Alternate Phone','Guardain Name', 'Comments'],
+  height: 'auto',
+  columns: [
+  {
+	type: 'text',
+  },
+  {
+	// 2nd cell is simple text, no special options here
+  },
+  {
+	type: 'date',
+	dateFormat: 'MM/DD/YYYY',
+	correctFormat: true,
+	// datePicker additional options
+	// (see https://github.com/dbushell/Pikaday#configuration)
+	/*datePickerConfig: {
+	  // First day of the week (0: Sunday, 1: Monday, etc)
+	  firstDay: 0,
+	  showWeekNumber: true,
+	  numberOfMonths: 3,
+	  licenseKey: 'non-commercial-and-evaluation',
+	  disableDayFn(date) {
+		// Disable Sunday and Saturday
+		return date.getDay() === 0 || date.getDay() === 6;
+	  }
+	}*/
+  },
+  {
+	type: 'numeric',
+	numericFormat: {
+	}
+  },
+  {
+	type: 'text',
+  },
+  {
+	type: 'text',
+  },
+  {
+	type: 'text',
+  },{
+	type: 'text',
+  },{
+	type: 'numeric',
+	numericFormat: {
+	}
+  },{
+	type: 'numeric',
+	numericFormat: {
+	}
+  },{
+	type: 'text',
+  },{
+	type: 'text',
+  },
+],
+  licenseKey: 'non-commercial-and-evaluation',
+  afterChange: function (change, source) {
+    if (source === 'loadData') {
+      return; //don't save this change
+    }
+
+    if (!autosave.checked) {
+      return;
+    }
+
+    clearTimeout(autosaveNotification);
+
+    ajax('/docs/11.0/scripts/json/save.json', 'GET', JSON.stringify({ data: change }), data => {
+      exampleConsole.innerText = 'Autosaved (' + change.length + ' ' + 'cell' + (change.length > 1 ? 's' : '') + ')';
+      autosaveNotification = setTimeout(() => {
+        exampleConsole.innerText ='Changes will be autosaved';
+      }, 1000);
+    });
+  }
+});
+
+Handsontable.dom.addEvent(load, 'click', () => {
+  ajax('/docs/11.0/scripts/json/load.json', 'GET', '', res => {
+    const data = JSON.parse(res.response);
+
+    hot.loadData(data.data);
+
+    exampleConsole.innerText = 'Data loaded';
+  });
+});
+Handsontable.dom.addEvent(save, 'click', () => {
+  // save all cell's data
+  ajax('/docs/11.0/scripts/json/save.json', 'GET', JSON.stringify({ data: hot.getData() }), res => {
+    const response = JSON.parse(res.response);
+
+    if (response.result === 'ok') {
+      exampleConsole.innerText = 'Data saved';
+    } else {
+      exampleConsole.innerText = 'Save error';
+    }
+  });
+});
+
+Handsontable.dom.addEvent(autosave, 'click', () => {
+  if (autosave.checked) {
+    exampleConsole.innerText = 'Changes will be autosaved';
+  } else {
+    exampleConsole.innerText ='Changes will not be autosaved';
+  }
+});
+
+function ajax(url, method, params, callback) {
+  let obj;
+
+  try {
+    obj = new XMLHttpRequest();
+  } catch (e) {
+    try {
+      obj = new ActiveXObject('Msxml2.XMLHTTP');
+    } catch (e) {
+      try {
+        obj = new ActiveXObject('Microsoft.XMLHTTP');
+      } catch (e) {
+        alert('Your browser does not support Ajax.');
+        return false;
+      }
+    }
+  }
+  obj.onreadystatechange = () => {
+    if (obj.readyState == 4) {
+      callback(obj);
+    }
+  };
+  obj.open(method, url, true);
+  obj.setRequestHeader('X-Requested-With', 'XMLHttpRequest');
+  obj.setRequestHeader('Content-type', 'application/x-www-form-urlencoded');
+  obj.send(params);
+
+  return obj;
+}
+
+  const exportPlugin = hot.getPlugin('exportFile');
+
+button.addEventListener('click', () => {
+  exportPlugin.downloadFile('csv', {
+    bom: false,
+    columnDelimiter: ',',
+    columnHeaders: false,
+    exportHiddenColumns: true,
+    exportHiddenRows: true,
+    fileExtension: 'csv',
+    filename: 'Handsontable-CSV-file_[YYYY]-[MM]-[DD]',
+    mimeType: 'text/csv',
+    rowDelimiter: '\r\n',
+    rowHeaders: true
+  });
+});
+  
+	</script>
+	
+</html>
